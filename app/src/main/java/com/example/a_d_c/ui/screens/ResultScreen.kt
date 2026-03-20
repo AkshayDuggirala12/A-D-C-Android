@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.util.Base64
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -106,39 +107,15 @@ fun ResultScreen(
                                 }
                             },
                             update = { webView ->
-                                val styledSvg = """
-                                    <!DOCTYPE html>
-                                    <html>
-                                    <head>
-                                        <meta charset="utf-8" />
-                                        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                                        <style>
-                                            body { 
-                                                margin: 0; 
-                                                display: flex; 
-                                                justify-content: center; 
-                                                align-items: center; 
-                                                height: 100vh; 
-                                                background-color: #f8f9fa; 
-                                                padding: 10px;
-                                            }
-                                            svg { 
-                                                max-width: 100%; 
-                                                max-height: 100%; 
-                                                width: auto; 
-                                                height: auto; 
-                                                background: white;
-                                                border-radius: 8px;
-                                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                            }
-                                        </style>
-                                    </head>
-                                    <body>
-                                        ${response.svg}
-                                    </body>
-                                    </html>
-                                """.trimIndent()
-                                webView.loadDataWithBaseURL(null, styledSvg, "text/html", "UTF-8", null)
+                                try {
+                                    val svgData = response.svg
+                                    if (svgData.isNotEmpty()) {
+                                        val encodedHtml = Base64.encodeToString(svgData.toByteArray(), Base64.NO_PADDING)
+                                        webView.loadData(encodedHtml, "image/svg+xml", "base64")
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             },
                             modifier = Modifier.fillMaxSize()
                         )
