@@ -11,25 +11,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.a_d_c.data.model.RoomCounts
-import com.example.a_d_c.data.model.VastuRequest
+import com.example.a_d_c.data.model.PlanRequest
+import com.example.a_d_c.data.model.RoomsRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InputScreen(
-    onGenerateClick: (VastuRequest) -> Unit
+    onGenerateClick: (PlanRequest) -> Unit
 ) {
     var plotWidth by remember { mutableStateOf("30") }
-    var plotHeight by remember { mutableStateOf("30") }
-    var facing by remember { mutableStateOf("east") }
+    var plotLength by remember { mutableStateOf("32") }
+    var facing by remember { mutableStateOf("north") }
+    var entrance by remember { mutableStateOf("auto") }
     var bedrooms by remember { mutableStateOf("2") }
-    var bathrooms by remember { mutableStateOf("1") }
+    var bathrooms by remember { mutableStateOf("2") }
     var kitchen by remember { mutableStateOf("1") }
     var hall by remember { mutableStateOf("1") }
-    var pooja by remember { mutableStateOf("0") }
+    var pooja by remember { mutableStateOf("1") }
 
-    val facings = listOf("east", "west", "north", "south")
-    var expanded by remember { mutableStateOf(false) }
+    val facings = listOf("north", "south", "east", "west")
+    val entrances = listOf("auto", "north", "south", "east", "west", "north-east", "north-west", "south-east", "south-west")
+    
+    var facingExpanded by remember { mutableStateOf(false) }
+    var entranceExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = { 
@@ -62,42 +66,75 @@ fun InputScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
                 OutlinedTextField(
-                    value = plotHeight,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) plotHeight = it },
-                    label = { Text("Height (ft)") },
+                    value = plotLength,
+                    onValueChange = { if (it.all { char -> char.isDigit() }) plotLength = it },
+                    label = { Text("Length (ft)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 )
             }
 
-            Text("Orientation", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Orientation & Entrance", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 
+            // Facing Dropdown
             ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
+                expanded = facingExpanded,
+                onExpandedChange = { facingExpanded = !facingExpanded }
             ) {
                 OutlinedTextField(
                     value = facing.replaceFirstChar { it.uppercase() },
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Facing Direction") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = facingExpanded) },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         .fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
                 ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    expanded = facingExpanded,
+                    onDismissRequest = { facingExpanded = false }
                 ) {
                     facings.forEach { selectionOption ->
                         DropdownMenuItem(
                             text = { Text(selectionOption.replaceFirstChar { it.uppercase() }) },
                             onClick = {
                                 facing = selectionOption
-                                expanded = false
+                                facingExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Entrance Dropdown
+            ExposedDropdownMenuBox(
+                expanded = entranceExpanded,
+                onExpandedChange = { entranceExpanded = !entranceExpanded }
+            ) {
+                OutlinedTextField(
+                    value = entrance.replaceFirstChar { it.uppercase() },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Entrance Location") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = entranceExpanded) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = entranceExpanded,
+                    onDismissRequest = { entranceExpanded = false }
+                ) {
+                    entrances.forEach { selectionOption ->
+                        DropdownMenuItem(
+                            text = { Text(selectionOption.replaceFirstChar { it.uppercase() }) },
+                            onClick = {
+                                entrance = selectionOption
+                                entranceExpanded = false
                             }
                         )
                     }
@@ -116,18 +153,18 @@ fun InputScreen(
 
             Button(
                 onClick = {
-                    val request = VastuRequest(
+                    val request = PlanRequest(
                         plotWidth = plotWidth.toIntOrNull() ?: 30,
-                        plotHeight = plotHeight.toIntOrNull() ?: 30,
+                        plotLength = plotLength.toIntOrNull() ?: 30,
                         facing = facing,
-                        rooms = RoomCounts(
+                        entrance = if (entrance == "auto") null else entrance,
+                        rooms = RoomsRequest(
                             bedroom = bedrooms.toIntOrNull() ?: 1,
                             bathroom = bathrooms.toIntOrNull() ?: 1,
                             kitchen = kitchen.toIntOrNull() ?: 1,
                             hall = hall.toIntOrNull() ?: 1,
                             pooja = pooja.toIntOrNull() ?: 0
-                        ),
-                        entrancePreferences = mapOf("main_entrance" to facing)
+                        )
                     )
                     onGenerateClick(request)
                 },

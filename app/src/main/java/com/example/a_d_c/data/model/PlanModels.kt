@@ -2,27 +2,24 @@ package com.example.a_d_c.data.model
 
 import com.google.gson.annotations.SerializedName
 
-// REQUEST MODELS
 data class PlanRequest(
     @SerializedName("plot_width")
     val plotWidth: Int,
-    @SerializedName("plot_height")
-    val plotHeight: Int,
-    val facing: String,  // "north", "south", "east", "west"
-    val rooms: RoomsRequest,
-    @SerializedName("entrance_preferences")
-    val entrancePreferences: Map<String, String> = mapOf()
+    @SerializedName("plot_length")
+    val plotLength: Int,
+    val facing: String,
+    val entrance: String? = null,
+    val rooms: RoomsRequest
 )
 
 data class RoomsRequest(
-    val bedroom: Int = 1,
-    val bathroom: Int = 1,
-    val kitchen: Int = 1,
-    val hall: Int = 1,
+    val bedroom: Int = 0,
+    val bathroom: Int = 0,
+    val kitchen: Int = 0,
+    val hall: Int = 0,
     val pooja: Int = 0
 )
 
-// RESPONSE MODELS
 data class PlanResponse(
     val success: Boolean,
     val svg: String,
@@ -50,7 +47,10 @@ data class Metadata(
     val plotWidth: Int,
     @SerializedName("plot_height")
     val plotHeight: Int,
+    @SerializedName("plot_length")
+    val plotLength: Int,
     val facing: String,
+    val entrance: String?,
     @SerializedName("rooms_count")
     val roomsCount: Int
 )

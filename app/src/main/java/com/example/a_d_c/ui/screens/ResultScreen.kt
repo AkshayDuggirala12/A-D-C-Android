@@ -1,11 +1,14 @@
 package com.example.a_d_c.ui.screens
 
 import android.app.DownloadManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Environment
-import android.util.Base64
+import android.provider.MediaStore
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -13,7 +16,17 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,8 +37,24 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,18 +64,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
+import com.caverock.androidsvg.SVG
 import com.example.a_d_c.data.api.RetrofitClient
-import com.example.a_d_c.data.model.VastuResponse
+import com.example.a_d_c.data.model.PlanResponse
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResultScreen(
-    response: VastuResponse,
+    response: PlanResponse,
     onBackClick: () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    LaunchedEffect(Unit) { visible = true }
+
+    LaunchedEffect(Unit) {
+        visible = true
+    }
 
     Scaffold(
         topBar = {
@@ -61,8 +94,8 @@ fun ResultScreen(
                     IconButton(onClick = { sharePlan(context, response.vastuScore) }) {
                         Icon(Icons.Default.Share, contentDescription = "Share")
                     }
-                    IconButton(onClick = { downloadFloorPlan(context) }) {
-                        Icon(Icons.Default.Download, contentDescription = "Download DXF")
+                    IconButton(onClick = { saveImageToGallery(context, response.svg) }) {
+                        Icon(Icons.Default.Download, contentDescription = "Download Image")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -74,7 +107,8 @@ fun ResultScreen(
     ) { paddingValues ->
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(animationSpec = tween(500)) + slideInVertically(initialOffsetY = { it / 2 })
+            enter = fadeIn(animationSpec = tween(500)) +
+                    slideInVertically(initialOffsetY = { it / 2 })
         ) {
             Column(
                 modifier = Modifier
@@ -84,11 +118,10 @@ fun ResultScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // SVG Display Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(350.dp),
+                        .height(420.dp),
                     shape = RoundedCornerShape(24.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
@@ -97,21 +130,31 @@ fun ResultScreen(
                             factory = { ctx ->
                                 WebView(ctx).apply {
                                     webViewClient = WebViewClient()
-                                    settings.javaScriptEnabled = true
+                                    settings.javaScriptEnabled = false
                                     settings.builtInZoomControls = true
                                     settings.displayZoomControls = false
                                     settings.useWideViewPort = true
                                     settings.loadWithOverviewMode = true
                                     settings.domStorageEnabled = true
-                                    setBackgroundColor(0x00000000) // Transparent background
+                                    settings.setSupportZoom(true)
+                                    setBackgroundColor(android.graphics.Color.WHITE)
                                 }
                             },
                             update = { webView ->
                                 try {
                                     val svgData = response.svg
-                                    if (svgData.isNotEmpty()) {
-                                        val encodedHtml = Base64.encodeToString(svgData.toByteArray(), Base64.NO_PADDING)
-                                        webView.loadData(encodedHtml, "image/svg+xml", "base64")
+                                    if (svgData.isNotBlank()) {
+                                        val cleanSvg = svgData
+                                            .replace("""<?xml version="1.0" encoding="UTF-8"?>""", "")
+                                            .trim()
+
+                                        webView.loadDataWithBaseURL(
+                                            null,
+                                            cleanSvg,
+                                            "image/svg+xml",
+                                            "utf-8",
+                                            null
+                                        )
                                     }
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -119,7 +162,7 @@ fun ResultScreen(
                             },
                             modifier = Modifier.fillMaxSize()
                         )
-                        
+
                         Surface(
                             modifier = Modifier
                                 .padding(12.dp)
@@ -128,7 +171,7 @@ fun ResultScreen(
                             shape = CircleShape
                         ) {
                             Text(
-                                "Pinch to zoom",
+                                text = "Pinch to zoom",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall
                             )
@@ -136,7 +179,38 @@ fun ResultScreen(
                     }
                 }
 
-                // Score Visualization
+                response.metadata?.let { metadata ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Resolved Plan Details",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                InfoItem(
+                                    label = "Dimensions",
+                                    value = "${metadata.plotWidth} x ${metadata.plotLength} ft"
+                                )
+                                InfoItem(
+                                    label = "Entrance",
+                                    value = metadata.entrance?.replaceFirstChar { it.uppercase() } ?: "Auto"
+                                )
+                            }
+                        }
+                    }
+                }
+
                 val scoreColor = try {
                     Color(response.scoreColor.toColorInt())
                 } catch (e: Exception) {
@@ -146,7 +220,9 @@ fun ResultScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = scoreColor.copy(alpha = 0.1f))
+                    colors = CardDefaults.cardColors(
+                        containerColor = scoreColor.copy(alpha = 0.1f)
+                    )
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -172,7 +248,7 @@ fun ResultScreen(
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
-                        
+
                         LinearProgressIndicator(
                             progress = { response.vastuScore / 100f },
                             modifier = Modifier
@@ -185,10 +261,13 @@ fun ResultScreen(
                     }
                 }
 
-                // Warnings & Recommendations
                 if (response.warnings.isNotEmpty() || response.recommendations.isNotEmpty()) {
-                    Text("Vastu Analysis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    
+                    Text(
+                        text = "Vastu Analysis",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
                     response.warnings.forEach { warning ->
                         AnalysisItem(
                             icon = Icons.Default.Warning,
@@ -197,7 +276,7 @@ fun ResultScreen(
                             backgroundColor = Color(0xFFFFEBEE)
                         )
                     }
-                    
+
                     response.recommendations.forEach { recommendation ->
                         AnalysisItem(
                             icon = Icons.Default.Info,
@@ -208,12 +287,21 @@ fun ResultScreen(
                     }
                 }
 
-                // Room Details List
-                Text("Room Inventory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Room Inventory",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
                 response.rooms.forEach { room ->
-                    RoomItem(room.type, room.zone, room.width, room.height)
+                    RoomItem(
+                        type = room.type,
+                        zone = room.zone,
+                        width = room.width,
+                        height = room.height
+                    )
                 }
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -221,7 +309,28 @@ fun ResultScreen(
 }
 
 @Composable
-fun AnalysisItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color, backgroundColor: Color) {
+fun InfoItem(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun AnalysisItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    color: Color,
+    backgroundColor: Color
+) {
     Surface(
         color = backgroundColor,
         shape = RoundedCornerShape(12.dp),
@@ -231,9 +340,18 @@ fun AnalysisItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: St
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = color.copy(alpha = 0.9f))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = color.copy(alpha = 0.9f)
+            )
         }
     }
 }
@@ -243,31 +361,36 @@ fun RoomItem(type: String, zone: String, width: Int, height: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
-                    type.replaceFirstChar { it.uppercase() },
+                    text = type.replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Zone: $zone",
+                    text = "Zone: $zone",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    "${width}x${height} ft",
+                    text = "${width}x${height} ft",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -278,41 +401,50 @@ fun RoomItem(type: String, zone: String, width: Int, height: Int) {
     }
 }
 
-private fun downloadFloorPlan(context: Context) {
+private fun saveImageToGallery(context: Context, svgString: String) {
     try {
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val url = "${RetrofitClient.BASE_URL}plan/generate-dxf"
-        val fileName = "vastu_floor_plan_${System.currentTimeMillis()}.dxf"
-        
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("Floor Plan Download")
-            .setDescription("Vastu Floor Plan (DXF Format)")
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        
-        downloadManager.enqueue(request)
-        Toast.makeText(context, "Download started!", Toast.LENGTH_SHORT).show()
+        val svg = SVG.getFromString(svgString)
+        val bitmap = Bitmap.createBitmap(2000, 2000, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        svg.renderToCanvas(canvas)
+
+        val fileName = "vastu_plan_${System.currentTimeMillis()}.png"
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+        }
+
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        uri?.let {
+            context.contentResolver.openOutputStream(it)?.use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            }
+            Toast.makeText(context, "Plan saved to Gallery!", Toast.LENGTH_SHORT).show()
+        } ?: throw Exception("Could not create MediaStore entry")
     } catch (e: Exception) {
-        Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_LONG).show()
+        e.printStackTrace()
     }
 }
 
 private fun sharePlan(context: Context, score: Int) {
     try {
         val shareText = """
-            🏠 Check out my Vastu Floor Plan!
-            
-            📊 Vastu Score: $score/100 ✅
-            
+            Check out my Vastu Floor Plan!
+
+            Vastu Score: $score/100
+
             Generated by Vastu Plan Generator
         """.trimIndent()
-        
+
         val shareIntent = Intent().apply {
             action = Intent.ACTION_SEND
             putExtra(Intent.EXTRA_TEXT, shareText)
             type = "text/plain"
         }
-        
+
         context.startActivity(Intent.createChooser(shareIntent, "Share Your Vastu Plan"))
     } catch (e: Exception) {
         Toast.makeText(context, "Share failed: ${e.message}", Toast.LENGTH_SHORT).show()
