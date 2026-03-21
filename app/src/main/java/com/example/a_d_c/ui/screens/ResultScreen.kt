@@ -1,14 +1,10 @@
 package com.example.a_d_c.ui.screens
 
 import android.app.DownloadManager
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.net.Uri
 import android.os.Environment
-import android.provider.MediaStore
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -64,7 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
-import com.caverock.androidsvg.SVG
 import com.example.a_d_c.data.api.RetrofitClient
 import com.example.a_d_c.data.model.PlanResponse
 
@@ -94,8 +89,8 @@ fun ResultScreen(
                     IconButton(onClick = { sharePlan(context, response.vastuScore) }) {
                         Icon(Icons.Default.Share, contentDescription = "Share")
                     }
-                    IconButton(onClick = { saveImageToGallery(context, response.svg) }) {
-                        Icon(Icons.Default.Download, contentDescription = "Download Image")
+                    IconButton(onClick = { downloadFloorPlan(context) }) {
+                        Icon(Icons.Default.Download, contentDescription = "Download DXF")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -401,31 +396,22 @@ fun RoomItem(type: String, zone: String, width: Int, height: Int) {
     }
 }
 
-private fun saveImageToGallery(context: Context, svgString: String) {
+private fun downloadFloorPlan(context: Context) {
     try {
-        val svg = SVG.getFromString(svgString)
-        val bitmap = Bitmap.createBitmap(2000, 2000, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(android.graphics.Color.WHITE)
-        svg.renderToCanvas(canvas)
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val url = "${RetrofitClient.BASE_URL}plan/generate-dxf"
+        val fileName = "vastu_floor_plan_${System.currentTimeMillis()}.dxf"
 
-        val fileName = "vastu_plan_${System.currentTimeMillis()}.png"
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-        }
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle("Floor Plan Download")
+            .setDescription("Vastu Floor Plan (DXF Format)")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
 
-        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        uri?.let {
-            context.contentResolver.openOutputStream(it)?.use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            }
-            Toast.makeText(context, "Plan saved to Gallery!", Toast.LENGTH_SHORT).show()
-        } ?: throw Exception("Could not create MediaStore entry")
+        downloadManager.enqueue(request)
+        Toast.makeText(context, "Download started!", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_LONG).show()
-        e.printStackTrace()
+        Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 
